@@ -1,0 +1,304 @@
+<div>
+	<div class="report-content-filter">
+		<div class="report-search" id="search">
+			<go5-search
+				[category]="'primary'"
+				[(ngModel)]="filter.search"
+				[placeholder]="'common_search' | sPhrase | async"
+				(ngModelChange)="onSearch('search', $event)"
+			>
+			</go5-search>
+		</div>
+		<div class="report-content-toolbar">
+			<go5-dropdown-filter
+				#filterRef
+				[dataSource]="dataSourceFilter"
+				[allowLocaliza]="true"
+				[value]="filter"
+				[maxWidth]="'150px'"
+				[category]="'primary'"
+				[mode]="'overflow-popup'"
+				[size]="'medium'"
+				[popupWidth_px]="276"
+				(changed)="onSelectedFilter($event)"
+				(clear)="onClearAll($event)"
+				(filtering)="onFiltering($event)"
+			>
+			</go5-dropdown-filter>
+		</div>
+
+		<div class="report-additional-filter">
+			<app-date-range
+				[reportType]="'sales-order'"
+				*ngIf="typeCalendar !== 'MonthOnly'"
+				(selected)="setFilter($event)"
+				[value]="dateRang"
+				[filterSize]="'medium'"
+				[maxWidth]="'240px'"
+				[category]="'primary'"
+			></app-date-range>
+		</div>
+		<div class="other-tool">
+			<div class="vertical-line-toolbar"></div>
+
+			<!-- Export -->
+			<div class="report-export">
+				<div *ngIf="btnExport" class="spinner-border spinner-border-sm text-success" role="status">
+					<span class="sr-only">Loading...</span>
+				</div>
+				<button *ngIf="!btnExport && canExportReport" class="export-button" type="button">
+					<i (click)="exportData()" class="font24 icon-Excel-export pointer"></i>
+				</button>
+				<div *ngIf="typeExportFile" class="history-box">
+					<i
+						(click)="openHistoryLog()"
+						class="gf-icon-empeo-history"
+						data-testid="button_history_log"
+						go5-tooltip="History"
+						go5-tooltip-placement="bottom"
+					></i>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+
+<!-- Summary  Report -->
+<app-summary-report [columns]="summaryColumm" [data]="summary" [loading]="loadingSummary"></app-summary-report>
+
+<!-- Table  Report -->
+<div #SOTable class="tb-report sales-order-report summary-header">
+	<ng-container>
+		<app-table-standard 
+			#table
+			[isLoading]="loading"
+			[columns]="columns"
+			[data]="data"
+			class="table-content"
+			[stickyHeaderTop]="'0px'" 
+			(sorted)="sortingBy($event)"
+		/>
+
+		<ng-template #customBody let-item>
+			<td class="col-custom-body order-details-cell" style="min-width: 480px;">
+			  <ng-container *ngIf="item.saleOrderDetails?.length > 0; else emptyState">
+				<div>
+				  <span>{{ item.saleOrderDetails[0].partName | default: 'str' }} - 
+						{{ item.saleOrderDetails[0].qty || 0 }} {{ item.saleOrderDetails[0].unit }}</span>
+				</div>
+				<ng-container *ngIf="item.saleOrderDetails?.length > 1">
+				  <div *ngFor="let order of item.saleOrderDetails.slice(1)">
+					<span>{{ order.partName | default: 'str' }} - {{ order.qty || 0 }} {{ order.unit }}</span>
+				  </div>
+				</ng-container>
+			  </ng-container>
+			  
+			  <ng-template #emptyState>
+				<div class="talign-left">-</div>
+			  </ng-template>
+			</td>
+		  </ng-template>
+
+		  <ng-template #customerName let-item>
+			<td style="width: 230px; min-width: 230px;"
+			  class="text-link-primary"
+			  (click)="openCustomerDetailDialog(item.customerId, $event)"
+			  [hoverCard]="item.customerId"
+			  [type]="'customer'"
+			>
+			  {{ item.customerName || '-' }}
+			</td>
+		  </ng-template>
+		<!-- <go5-table #table class="table-content" [category]="'secondary'" [hasBorderRadius]="false" [stickyMode]="'sticky'">
+			<ng-template #headerTemplate>
+				<tr>
+					<ng-template [ngForOf]="columns" let-c let-i="index" ngFor>
+						<th
+							*ngIf="c.isActive"
+							class="go5-table-header-text {{ c.cssClass }}"
+							[ngClass]="{
+								'column-order-details': c.column === 'orderDetails'
+							}"
+							[style.width]="c.width"
+							[ngStyle]="{
+								'min-width': c.width
+							}"
+						>
+							{{ c.columnName | phrase | async }}
+
+							<s-order-icon
+								*ngIf="c.orderable"
+								class="orderPadding"
+								[key]="c.orderKey[0]"
+								[orderBy]="c.sortType"
+								(change)="sortingBy($event, c)"
+							></s-order-icon>
+						</th>
+					</ng-template>
+				</tr>
+			</ng-template>
+
+			<ng-template #contentTemplate>
+				<tbody go5-table-body-content>
+					<ng-template [ngForOf]="data" let-i="index" let-item ngFor>
+						<tr
+							go5-table-row
+							(click)="app.openSalesOrderURL(item.saleOrderNo ? item.saleOrderNo : item.saleOrderId, false, true)"
+							[ngClass]="{ 'row-align-top': cellAlignTop(item) }"
+						>
+							<ng-template [ngForOf]="columns" let-c let-j="index" ngFor>
+								<ng-template [ngIf]="c.isActive">
+									<td go5-table-cell *ngIf="c.type === 'date'" [style.width]="c.width">
+										{{ item[c.column] | sDate: DateFormat.dateShort | async }}
+									</td>
+									<td go5-table-cell *ngIf="c.type === 'string'" [style.width]="c.width">
+										{{ translateKeyInText(item[c.column]) | default: 'str' }}
+									</td>
+
+									<td
+										go5-table-cell
+										*ngIf="c.type === 'payment'"
+										class="payment-cell"
+										[style.width]="c.width"
+										[innerHTML]="item[c.column] || '-'"
+									></td>
+									<td
+										go5-table-cell
+										*ngIf="c.type === 'remark'"
+										class="remark-cell"
+										[style.width]="c.width"
+									><div class="remark-content" [innerHTML]="(translateKeyInText(item[c.column]) | removeMarker) ?? '-'"></div>
+								</td>
+
+									<td go5-table-cell *ngIf="c.type === 'number'" [style.width]="c.width">
+										{{ item[c.column] || '-' }}
+									</td>
+									<td
+										go5-table-cell
+										*ngIf="c.type === 'customer'"
+										[hoverCard]="item.customerId"
+										(click)="openCustomerDetailDialog(item.customerId, $event)"
+										[type]="'customer'"
+										class="{{ item[c.column] ? 'text-link-primary' : '' }}"
+										[style.width]="c.width"
+									>
+										{{ item[c.column] || '-' }}
+									</td>
+									<td
+										go5-table-cell
+										*ngIf="c.type === 'employee'"
+										[hoverCard]="item.createdByUserId"
+										[openClick]="true"
+										[style.width]="c.width"
+										class="custom-padding"
+									>
+										<go5-avatar-information
+											title="{{ item[c.column] }}"
+											src="{{ item.pictureUrl }}"
+											type="picUser"
+											size="medium"
+											width="40px"
+										></go5-avatar-information>
+									</td>
+									<td go5-table-cell *ngIf="c.type === 'status'" [style.width]="c.width" class="talign-center">
+										<go5-status
+											[type]="'salesOrder'"
+											[statusId]="item[c.column]"
+											[label]="'common_status_' + Statuses[item[c.column]] | phrase | async"
+										>
+										</go5-status>
+									</td>
+									<td go5-table-cell *ngIf="c.type === 'baht'" class="talign-right" [style.width]="c.width">
+										{{ item[c.column] > 0 ? item?.currency?.currencySymbol + (item[c.column] | number: '0.2-2') : '-' }}
+									</td>
+
+									<td go5-table-cell *ngIf="c.type === 'attachment'" [style.width]="c.width">
+										<ul class="none-listStyle attactment-list no-margin no-padding">
+											<li *ngFor="let att of item.attachments">
+												<img
+													(click)="attachmentModal.modalBtnClickAtt(att, item.attachments)"
+													[src]="att | attachmentSecure | async"
+													tooltipAtm="{{ att.filename }}"
+												/>
+											</li>
+										</ul>
+									</td> -->
+
+									<!-- Sales Order Detail -->
+									<!-- <ng-template [ngIf]="c.type === 'orderDetail'">
+										<td go5-table-cell class="order-details-cell" [style.width]="c.width">
+											<ng-template [ngIf]="item.saleOrderDetails?.length > 0"> -->
+												<!-- First item -->
+												<!-- <div>
+													<span
+														>{{ item.saleOrderDetails[0].partName | default: 'str' }} -
+														{{ item.saleOrderDetails[0].qty || 0 }} {{ item.saleOrderDetails[0].unit }}</span
+													>
+												</div> -->
+
+												<!-- Additional items -->
+												<!-- <ng-template [ngIf]="item.saleOrderDetails?.length > 1">
+													<div *ngFor="let order of item.saleOrderDetails.slice(1)">
+														<span>{{ order.partName | default: 'str' }} - {{ order.qty || 0 }} {{ order.unit }}</span>
+													</div>
+												</ng-template>
+											</ng-template> -->
+
+											<!-- Empty state -->
+											<!-- <div *ngIf="item.saleOrderDetails?.length === 0" class="talign-left">-</div>
+										</td>
+									</ng-template> -->
+									<!-- Sales Order Detail Price-->
+									<!-- <ng-template [ngIf]="c.type === 'orderDetailPrice'">
+										<td go5-table-cell class="talign-right" [style.width]="c.width">
+											<ng-template [ngIf]="item.saleOrderDetails?.length > 0"> -->
+												<!-- First item price -->
+												<!-- <div>
+													{{
+														item.saleOrderDetails[0].totalPrice > 0
+															? item?.currency?.currencySymbol + (item.saleOrderDetails[0].totalPrice | number: '0.2-2')
+															: '-'
+													}}
+												</div> -->
+
+												<!-- Additional items prices -->
+												<!-- <ng-template [ngIf]="item.saleOrderDetails?.length > 1">
+													<div *ngFor="let order of item.saleOrderDetails.slice(1)">
+														{{
+															order.totalPrice > 0
+																? item?.currency?.currencySymbol + (order.totalPrice | number: '0.2-2')
+																: '-'
+														}}
+													</div>
+												</ng-template>
+											</ng-template> -->
+
+											<!-- Empty state -->
+											<!-- <div *ngIf="item.saleOrderDetails?.length === 0" class="talign-right">-</div>
+										</td>
+									</ng-template>
+								</ng-template>
+							</ng-template>
+						</tr>
+					</ng-template>
+
+					<ng-container *ngIf="loading || scrollLoading()">
+						<tr go5-table-row *ngFor="let data of counter(9)">
+							<ng-template ngFor [ngForOf]="columns" let-col>
+								<td go5-table-cell *ngIf="col.isActive" [ngClass]="col.cssClass" [ngStyle]="{ width: col.width }">
+									<ngx-skeleton-loader [theme]="{ margin: '0px' }"> </ngx-skeleton-loader>
+								</td>
+							</ng-template>
+						</tr>
+					</ng-container>
+				</tbody>
+			</ng-template>
+		</go5-table> -->
+		
+		<div *ngIf="!loading && (data === null || data?.length === 0)">
+			<div class="emptyBlock emptyBlock-tab" style="height: 40vh"></div>
+		</div>
+	</ng-container>
+</div>
+<app-attachment-modal #attachmentModal></app-attachment-modal>
+<app-history-log #dialog></app-history-log>
